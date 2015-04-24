@@ -161,6 +161,11 @@ func (c scollectorCollector) handleScoll(w http.ResponseWriter, r *http.Request)
 	n := 0
 	for _, m := range batch {
 		Log.Debug("got", "msg", m)
+		name := clearName(m.Metric, true, 'x')
+		if name == "" {
+			Log.Warn("bad metric name: " + m.Metric)
+			continue
+		}
 
 		var v float64
 		switch x := m.Value.(type) {
@@ -174,8 +179,8 @@ func (c scollectorCollector) handleScoll(w http.ResponseWriter, r *http.Request)
 			v = float64(x)
 		case string: // type info
 			if x != "" {
-				if z, ok := c.types[m.Metric]; !ok || z != x {
-					c.types[m.Metric] = x
+				if z, ok := c.types[name]; !ok || z != x {
+					c.types[name] = x
 				}
 			}
 			continue
@@ -184,7 +189,7 @@ func (c scollectorCollector) handleScoll(w http.ResponseWriter, r *http.Request)
 			continue
 		}
 		typ := prometheus.GaugeValue
-		if c.types[m.Metric] == "counter" {
+		if c.types[name] == "counter" {
 			typ = prometheus.CounterValue
 		}
 		var ts time.Time
@@ -195,15 +200,23 @@ func (c scollectorCollector) handleScoll(w http.ResponseWriter, r *http.Request)
 		} else {
 			ts = time.Unix(m.Timestamp, 0)
 		}
+		for k := range m.Tags {
+			k2 := clearName(k, false, 'x')
+			if k2 != "" && k2 != k {
+				Log.Warn("bad label name " + k)
+				m.Tags[k2] = m.Tags[k]
+				delete(m.Tags, k)
+			}
+		}
 		if m.Tags["host"] != "" {
 			m.Tags["instance"] = m.Tags["host"]
 			delete(m.Tags, "host")
 		}
 		c.ch <- scollectorSample{
-			Name:      dotReplacer.Replace(m.Metric),
+			Name:      name,
 			Labels:    m.Tags,
 			Type:      typ,
-			Help:      fmt.Sprintf("Scollector metric %s (%s)", m.Metric, c.types[m.Metric]),
+			Help:      fmt.Sprintf("Scollector metric %s (%s)", m.Metric, c.types[name]),
 			Value:     v,
 			Timestamp: ts,
 		}
@@ -234,4 +247,30 @@ func main() {
 	http.Handle("/metrics", prometheus.Handler())
 	Log.Info("Serving on " + *flagAddr)
 	http.ListenAndServe(*flagAddr, nil)
+}
+
+// clearName replaces non-allowed characters.
+func clearName(txt string, allowColon bool, replaceRune rune) string {
+	if replaceRune == 0 {
+		replaceRune = -1
+	}
+	i := -1
+	return strings.Map(
+		func(r rune) rune {
+			i++
+			if r == '.' {
+				return '_'
+			}
+			if 'a' <= r && r <= 'z' || 'A' <= r && r <= 'Z' || r == '_' {
+				return r
+			}
+			if allowColon && r == ':' {
+				return r
+			}
+			if i > 0 && '0' <= r && r <= '9' {
+				return r
+			}
+			return replaceRune
+		},
+		txt)
 }
