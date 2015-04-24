@@ -21,6 +21,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -125,26 +126,7 @@ func (c scollectorCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- lastProcessed.Desc()
 }
 
-func main() {
-	Log.SetHandler(log15.CallerFileHandler(log15.StderrHandler))
-
-	flagAddr := flag.String("http", "0.0.0.0:9107", "address to listen on")
-	flagScollPref := flag.String("scollector.prefix", "/", "HTTP path prefix for listening for scollector-sent data")
-	flagVerbose := flag.Bool("v", false, "verbose logging")
-
-	flag.Parse()
-	if !*flagVerbose {
-		Log.SetHandler(log15.LvlFilterHandler(log15.LvlInfo, log15.StderrHandler))
-	}
-
-	c := newScollectorCollector()
-	prometheus.MustRegister(c)
-
-	http.HandleFunc(*flagScollPref, c.handleScoll)
-	http.Handle("/metrics", prometheus.Handler())
-	Log.Info("Serving on " + *flagAddr)
-	http.ListenAndServe(*flagAddr, nil)
-}
+var dotReplacer = strings.NewReplacer(".", "_")
 
 func (c scollectorCollector) handleScoll(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
@@ -213,8 +195,12 @@ func (c scollectorCollector) handleScoll(w http.ResponseWriter, r *http.Request)
 		} else {
 			ts = time.Unix(m.Timestamp, 0)
 		}
+		if m.Tags["host"] != "" {
+			m.Tags["instance"] = m.Tags["host"]
+			delete(m.Tags, "host")
+		}
 		c.ch <- scollectorSample{
-			Name:      m.Metric,
+			Name:      dotReplacer.Replace(m.Metric),
 			Labels:    m.Tags,
 			Type:      typ,
 			Help:      fmt.Sprintf("Scollector metric %s (%s)", m.Metric, c.types[m.Metric]),
@@ -227,4 +213,25 @@ func (c scollectorCollector) handleScoll(w http.ResponseWriter, r *http.Request)
 	Log.Info("processed", "messages", n, "samples", len(c.samples), "types", len(c.types))
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func main() {
+	Log.SetHandler(log15.CallerFileHandler(log15.StderrHandler))
+
+	flagAddr := flag.String("http", "0.0.0.0:9107", "address to listen on")
+	flagScollPref := flag.String("scollector.prefix", "/api/put", "HTTP path prefix for listening for scollector-sent data")
+	flagVerbose := flag.Bool("v", false, "verbose logging")
+
+	flag.Parse()
+	if !*flagVerbose {
+		Log.SetHandler(log15.LvlFilterHandler(log15.LvlInfo, log15.StderrHandler))
+	}
+
+	c := newScollectorCollector()
+	prometheus.MustRegister(c)
+
+	http.HandleFunc(*flagScollPref, c.handleScoll)
+	http.Handle("/metrics", prometheus.Handler())
+	Log.Info("Serving on " + *flagAddr)
+	http.ListenAndServe(*flagAddr, nil)
 }
