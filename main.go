@@ -94,7 +94,7 @@ func (c *scollectorCollector) processSamples() {
 }
 
 // Collect implements prometheus.Collector.
-func (c scollectorCollector) Collect(ch chan<- prometheus.Metric) {
+func (c *scollectorCollector) Collect(ch chan<- prometheus.Metric) {
 	Log.Debug("Collect", "samples", len(c.samples))
 	ch <- lastProcessed
 	Log.Debug("Collect", "lastProcessed", lastProcessed)
@@ -122,13 +122,13 @@ func (c scollectorCollector) Collect(ch chan<- prometheus.Metric) {
 }
 
 // Describe implements prometheus.Collector.
-func (c scollectorCollector) Describe(ch chan<- *prometheus.Desc) {
+func (c *scollectorCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- lastProcessed.Desc()
 }
 
 var dotReplacer = strings.NewReplacer(".", "_")
 
-func (c scollectorCollector) handleScoll(w http.ResponseWriter, r *http.Request) {
+func (c *scollectorCollector) handleScoll(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	sendErr := func(msg string, code int) {
 		Log.Error(msg)
