@@ -21,6 +21,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -54,6 +55,15 @@ type scollectorSample struct {
 	Timestamp time.Time
 }
 
+func (s scollectorSample) NameWithLabels() string {
+	labels := make([]string, 0, len(s.Labels))
+	for k, v := range s.Labels {
+		labels = append(labels, k+"="+v)
+	}
+	sort.Strings(labels)
+	return s.Name + "#" + strings.Join(labels, ";")
+}
+
 type scollectorCollector struct {
 	samples map[string]scollectorSample
 	types   map[string]string
@@ -77,7 +87,7 @@ func (c *scollectorCollector) processSamples() {
 		select {
 		case sample := <-c.ch:
 			c.mu.Lock()
-			c.samples[sample.Name] = sample
+			c.samples[sample.NameWithLabels()] = sample
 			c.mu.Unlock()
 		case <-ticker:
 			// Garbage collect expired samples.
