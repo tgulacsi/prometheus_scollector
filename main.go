@@ -228,16 +228,19 @@ func (c *scollectorCollector) handleScoll(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func main() {
-	Log.SetHandler(log15.CallerFileHandler(log15.StderrHandler))
+var (
+	flagAddr      = flag.String("http", "0.0.0.0:9107", "address to listen on")
+	flagScollPref = flag.String("scollector.prefix", "/api/put", "HTTP path prefix for listening for scollector-sent data")
+	flagVerbose   = flag.Bool("v", false, "verbose logging")
+)
 
-	flagAddr := flag.String("http", "0.0.0.0:9107", "address to listen on")
-	flagScollPref := flag.String("scollector.prefix", "/api/put", "HTTP path prefix for listening for scollector-sent data")
-	flagVerbose := flag.Bool("v", false, "verbose logging")
+func main() {
+	hndl := log15.CallerFileHandler(log15.StderrHandler)
+	Log.SetHandler(hndl)
 
 	flag.Parse()
 	if !*flagVerbose {
-		Log.SetHandler(log15.LvlFilterHandler(log15.LvlInfo, log15.StderrHandler))
+		Log.SetHandler(log15.LvlFilterHandler(log15.LvlInfo, hndl))
 	}
 
 	c := newScollectorCollector()
