@@ -18,3 +18,6 @@ and don't forget to add a
 	}
 
 to your prometheus.conf.
+
+# Docker #
+I've copied the Dockerfile from Alexey Diyan's github.com/diyan/prom-scollector-exporter-docker - so you can use that directly.
