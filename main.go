@@ -142,6 +142,9 @@ func (c *scollectorCollector) handleScoll(w http.ResponseWriter, r *http.Request
 	defer r.Body.Close()
 	sendErr := func(msg string, code int) {
 		Log.Error(msg)
+		if code == 0 {
+			code = http.StatusInternalServerError
+		}
 		http.Error(w, msg, code)
 	}
 	if r.Method != "POST" {
