@@ -28,6 +28,7 @@ import (
 
 	"bosun.org/opentsdb"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gopkg.in/inconshreveable/log15.v2"
 )
 
@@ -260,7 +261,7 @@ func main() {
 	prometheus.MustRegister(c)
 
 	http.HandleFunc(*flagScollPref, c.handleScoll)
-	http.Handle("/metrics", prometheus.Handler())
+	http.Handle("/metrics", promhttp.Handler())
 	Log.Info("Serving on " + *flagAddr)
 	http.ListenAndServe(*flagAddr, nil)
 }
